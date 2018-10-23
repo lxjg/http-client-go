@@ -1,6 +1,8 @@
 package httpclient
 
 import (
+	"encoding/json"
+	"errors"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -8,6 +10,12 @@ import (
 
 type HttpClient struct {
 	Header map[string]string
+}
+
+type ErrorRes struct {
+	ErrorCode string `json:"error_code"`
+	ErrorMsg  string `json:"message"`
+	Details   string `json:"details"`
 }
 
 func NewHttpClient() *HttpClient {
@@ -60,10 +68,21 @@ func (c *HttpClient) Do(method, url string, body io.Reader) ([]byte, error) {
 
 	client := http.Client{}
 	response, err := client.Do(req)
-	if err != nil || response.StatusCode != http.StatusOK {
+	if err != nil {
 		return nil, err
 	}
 
 	defer response.Body.Close()
-	return ioutil.ReadAll(response.Body)
+	res, err := ioutil.ReadAll(response.Body)
+	if response.StatusCode != http.StatusOK {
+		if len(res) == 0 {
+			return nil, errors.New("通信失败")
+		}
+
+		var data ErrorRes
+		json.Unmarshal(res, &data)
+		return nil, errors.New(data.ErrorCode)
+	}
+
+	return res, err
 }
